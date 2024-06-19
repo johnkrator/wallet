@@ -9,6 +9,20 @@ import jwt from "jsonwebtoken";
 export const register = async (req: Request, res: Response) => {
     const {name, email, phoneNumber, password} = req.body;
 
+    // Password validation regex
+    const passwordRegex = /^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)(?=.*[@$!%*?&])[A-Za-z\d@$!%*?&]{8,}$/;
+
+    if (!name || !email || !phoneNumber || !password) {
+        return res.status(400).json({message: "Please provide all the required fields"});
+    }
+
+    if (!passwordRegex.test(password)) {
+        return res.status(400).json({
+            message:
+                "Password must be at least 8 characters long and contain at least one uppercase letter, one lowercase letter, one number, and one special character",
+        });
+    }
+
     // Check if the user is on the blacklist
     const isBlacklisted = await checkBlacklist(email, phoneNumber);
     if (isBlacklisted) {

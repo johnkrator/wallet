@@ -8,6 +8,9 @@ export async function up(knex: Knex): Promise<void> {
         table.string("phone_number", 20).notNullable().unique();
         table.string("password", 255).notNullable();
         table.boolean("is_blacklisted").defaultTo(false);
+        table.string("verification_code", 6).nullable();
+        table.boolean("is_verified").defaultTo(false);
+        table.boolean("is_deleted").defaultTo(false);
         table.timestamps(true, true);
     });
 }

@@ -12,7 +12,7 @@ var __importDefault = (this && this.__importDefault) || function (mod) {
     return (mod && mod.__esModule) ? mod : { "default": mod };
 };
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.fundWallet = void 0;
+exports.withdrawFunds = exports.fundWallet = void 0;
 const db_1 = __importDefault(require("../db/db"));
 const fundWallet = (req, res) => __awaiter(void 0, void 0, void 0, function* () {
     const { amount } = req.body;
@@ -49,4 +49,44 @@ const fundWallet = (req, res) => __awaiter(void 0, void 0, void 0, function* () 
     }
 });
 exports.fundWallet = fundWallet;
+const withdrawFunds = (req, res) => __awaiter(void 0, void 0, void 0, function* () {
+    const { amount } = req.body;
+    const user = req.user;
+    if (!user) {
+        return res.status(401).json({ error: "Unauthorized" });
+    }
+    const trx = yield db_1.default.transaction();
+    try {
+        // Fetch the user's wallet
+        const wallet = yield trx("wallets").where({ user_id: user.id }).first();
+        if (!wallet) {
+            yield trx.rollback();
+            return res.status(404).json({ error: "Wallet not found" });
+        }
+        // Check if the user has sufficient balance
+        if (wallet.balance < amount) {
+            yield trx.rollback();
+            return res.status(400).json({ error: "Insufficient funds" });
+        }
+        // Create a new withdrawal transaction
+        yield trx("transactions").insert({
+            wallet_id: wallet.id,
+            type: "withdrawal",
+            amount,
+            status: "successful",
+        });
+        // Update the wallet balance
+        yield trx("wallets")
+            .where({ id: wallet.id })
+            .update({ balance: db_1.default.raw("balance - ?", [amount]) });
+        yield trx.commit();
+        res.status(200).json({ message: "Withdrawal successful" });
+    }
+    catch (error) {
+        yield trx.rollback();
+        console.error(error);
+        res.status(500).json({ error: "Internal Server Error" });
+    }
+});
+exports.withdrawFunds = withdrawFunds;
 //# sourceMappingURL=transaction.controllers.js.map

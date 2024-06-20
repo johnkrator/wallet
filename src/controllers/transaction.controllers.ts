@@ -155,3 +155,51 @@ export const transferFunds = async (req: AuthenticatedRequest, res: Response) =>
     }
 };
 
+export const getWalletTransactions = async (req: AuthenticatedRequest, res: Response) => {
+    const {walletId} = req.params;
+    const user = req.user;
+
+    if (!user) {
+        return res.status(401).json({error: "Unauthorized"});
+    }
+
+    // Validate walletId as a number
+    const walletIdNumber = parseInt(walletId, 10);
+    if (isNaN(walletIdNumber) || walletIdNumber <= 0) {
+        return res.status(400).json({error: "Invalid walletId"});
+    }
+
+    const trx = await db.transaction();
+
+    try {
+        // Fetch the user's wallet
+        const wallet = await trx("wallets")
+            .where({id: walletIdNumber, user_id: user.id})
+            .first();
+
+        if (!wallet) {
+            await trx.rollback();
+            return res.status(404).json({error: "Wallet not found"});
+        }
+
+        // Pagination
+        const page = parseInt(req.query.page as string, 10) || 1;
+        const perPage = 10;
+        const offset = (page - 1) * perPage;
+
+        // Fetch the wallet transactions with pagination
+        const transactions = await trx("transactions")
+            .where({wallet_id: wallet.id})
+            .orderBy("timestamp", "desc")
+            .limit(perPage)
+            .offset(offset)
+            .select("*");
+
+        await trx.commit();
+        res.status(200).json({transactions});
+    } catch (error) {
+        await trx.rollback();
+        console.error(error);
+        res.status(500).json({error: "Internal Server Error"});
+    }
+};

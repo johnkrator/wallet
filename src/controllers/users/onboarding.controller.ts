@@ -4,7 +4,7 @@ import {checkBlacklist} from "../../helpers/middlewares/checkBlacklist";
 import db from "../../db/db";
 import crypto from "crypto";
 import sendRegistrationVerificationEmail from "../../helpers/emailService/sendRegistrationVerificationEmail";
-import jwt from "jsonwebtoken";
+import generateToken from "../../helpers/middlewares/generateToken";
 
 export const register = async (req: Request, res: Response) => {
     const {name, email, phoneNumber, password} = req.body;
@@ -48,15 +48,14 @@ export const register = async (req: Request, res: Response) => {
         const verificationCode = crypto.randomInt(100000, 999999).toString();
 
         // Create a new user
-        const userInsertResult = await db("users")
-            .insert({
-                name,
-                email,
-                phone_number: phoneNumber,
-                password: hashedPassword,
-                verification_code: verificationCode,
-                is_verified: false,
-            });
+        const userInsertResult = await db("users").insert({
+            name,
+            email,
+            phone_number: phoneNumber,
+            password: hashedPassword,
+            verification_code: verificationCode,
+            is_verified: false,
+        });
 
         // Fetch the new user's ID
         const userId = userInsertResult[0];
@@ -70,10 +69,9 @@ export const register = async (req: Request, res: Response) => {
         const [user] = await db("users").where({id: userId}).select("*");
 
         // Create a new wallet for the user
-        const walletInsertResult = await db("wallets")
-            .insert({
-                user_id: userId,
-            });
+        const walletInsertResult = await db("wallets").insert({
+            user_id: userId,
+        });
 
         // Fetch the wallet details using the walletId
         const walletId = walletInsertResult[0];
@@ -86,40 +84,14 @@ export const register = async (req: Request, res: Response) => {
         // Send the verification email
         await sendRegistrationVerificationEmail(email, verificationCode);
 
-        res.status(201).json({user, wallet});
+        // Generate a JWT token for the new user
+        const token = generateToken(res, userId.toString(), name);
+
+        res.status(201).json({user, wallet, token});
     } catch (error) {
         console.error(error);
         res.status(500).json({error: "Internal Server Error"});
-    }
-};
-
-export const verifyEmail = async (req: Request, res: Response) => {
-    const {email, verificationCode} = req.body;
-
-    try {
-        // Find the user by email
-        const [user] = await db("users")
-            .where("email", email)
-            .select("*");
-
-        if (!user) {
-            return res.status(404).json({error: "User not found"});
-        }
-
-        // Check if the verification code matches
-        if (user.verification_code !== verificationCode) {
-            return res.status(400).json({error: "Invalid verification code"});
-        }
-
-        // Update the user's is_verified column to true
-        await db("users")
-            .where("id", user.id)
-            .update({is_verified: true, verification_code: null});
-
-        res.status(200).json({message: "Email verification successful"});
-    } catch (error) {
-        console.error(error);
-        res.status(500).json({error: "Internal Server Error"});
+        throw error;
     }
 };
 
@@ -148,11 +120,42 @@ export const login = async (req: Request, res: Response) => {
         }
 
         // Generate a JWT token
-        const token = jwt.sign({userId: user.id}, process.env.JWT_SECRET!, {
-            expiresIn: "1h",
-        });
+        const token = generateToken(res, user.id.toString(), user.name);
 
-        res.status(200).json({user, token});
+        // Remove the password field from the user object
+        const {password: _, ...userWithoutPassword} = user;
+
+        res.status(200).json({user: userWithoutPassword, token});
+    } catch (error) {
+        console.error(error);
+        res.status(500).json({error: "Internal Server Error"});
+    }
+};
+
+export const verifyEmail = async (req: Request, res: Response) => {
+    const {email, verificationCode} = req.body;
+
+    try {
+        // Find the users by email
+        const [user] = await db("users")
+            .where("email", email)
+            .select("*");
+
+        if (!user) {
+            return res.status(404).json({error: "User not found"});
+        }
+
+        // Check if the verification code matches
+        if (user.verification_code !== verificationCode) {
+            return res.status(400).json({error: "Invalid verification code"});
+        }
+
+        // Update the user's is_verified column to true
+        await db("users")
+            .where("id", user.id)
+            .update({is_verified: true, verification_code: null});
+
+        res.status(200).json({message: "Email verification successful"});
     } catch (error) {
         console.error(error);
         res.status(500).json({error: "Internal Server Error"});

@@ -1,6 +1,7 @@
 import {Response} from "express";
 import db from "../db/db";
 import {AuthenticatedRequest} from "../helpers/middlewares/authMiddleware";
+import sendTransactionNotificationEmail from "../helpers/emailService/sendTransactionNotificationEmail";
 
 export const fundWallet = async (req: AuthenticatedRequest, res: Response) => {
     const {amount} = req.body;
@@ -13,12 +14,20 @@ export const fundWallet = async (req: AuthenticatedRequest, res: Response) => {
     const trx = await db.transaction();
 
     try {
-        // Fetch the user's wallet
-        const wallet = await trx("wallets").where({user_id: user.id}).first();
+        // Fetch the user's wallet and email
+        const [wallet, userDetails] = await Promise.all([
+            trx("wallets").where({user_id: user.id}).first(),
+            trx("users").where({id: user.id}).select("email").first()
+        ]);
 
         if (!wallet) {
             await trx.rollback();
             return res.status(404).json({error: "Wallet not found"});
+        }
+
+        if (!userDetails) {
+            await trx.rollback();
+            return res.status(404).json({error: "User details not found"});
         }
 
         // Create a new deposit transaction
@@ -34,8 +43,21 @@ export const fundWallet = async (req: AuthenticatedRequest, res: Response) => {
             .where({id: wallet.id})
             .update({balance: db.raw("balance + ?", [amount])});
 
+        // Fetch the updated wallet balance
+        const updatedWallet = await trx("wallets")
+            .where({id: wallet.id})
+            .select("balance")
+            .first();
+
         await trx.commit();
         res.status(200).json({message: "Deposit successful"});
+
+        // Send email notification
+        await sendTransactionNotificationEmail(userDetails.email, {
+            type: "deposit",
+            amount: amount,
+            balance: updatedWallet.balance
+        });
     } catch (error) {
         await trx.rollback();
         console.error(error);
@@ -54,12 +76,20 @@ export const withdrawFunds = async (req: AuthenticatedRequest, res: Response) =>
     const trx = await db.transaction();
 
     try {
-        // Fetch the user's wallet
-        const wallet = await trx("wallets").where({user_id: user.id}).first();
+        // Fetch the user's wallet and email
+        const [wallet, userDetails] = await Promise.all([
+            trx("wallets").where({user_id: user.id}).first(),
+            trx("users").where({id: user.id}).select("email").first()
+        ]);
 
         if (!wallet) {
             await trx.rollback();
             return res.status(404).json({error: "Wallet not found"});
+        }
+
+        if (!userDetails) {
+            await trx.rollback();
+            return res.status(404).json({error: "User details not found"});
         }
 
         // Check if the user has sufficient balance
@@ -81,8 +111,21 @@ export const withdrawFunds = async (req: AuthenticatedRequest, res: Response) =>
             .where({id: wallet.id})
             .update({balance: db.raw("balance - ?", [amount])});
 
+        // Fetch the updated wallet balance
+        const updatedWallet = await trx("wallets")
+            .where({id: wallet.id})
+            .select("balance")
+            .first();
+
         await trx.commit();
         res.status(200).json({message: "Withdrawal successful"});
+
+        // Send email notification
+        await sendTransactionNotificationEmail(userDetails.email, {
+            type: "withdrawal",
+            amount: amount,
+            balance: updatedWallet.balance
+        });
     } catch (error) {
         await trx.rollback();
         console.error(error);
@@ -101,14 +144,15 @@ export const transferFunds = async (req: AuthenticatedRequest, res: Response) =>
     const trx = await db.transaction();
 
     try {
-        // Fetch the sender's wallet
-        const senderWallet = await trx("wallets")
-            .where({user_id: user.id})
-            .first();
+        // Fetch the sender's wallet and email
+        const [senderWallet, senderDetails] = await Promise.all([
+            trx("wallets").where({user_id: user.id}).first(),
+            trx("users").where({id: user.id}).select("email").first()
+        ]);
 
-        if (!senderWallet) {
+        if (!senderWallet || !senderDetails) {
             await trx.rollback();
-            return res.status(404).json({error: "Sender wallet not found"});
+            return res.status(404).json({error: "Sender wallet or details not found"});
         }
 
         // Check if the sender has sufficient balance
@@ -117,14 +161,18 @@ export const transferFunds = async (req: AuthenticatedRequest, res: Response) =>
             return res.status(400).json({error: "Insufficient balance"});
         }
 
-        // Fetch the recipient's wallet
-        const recipientWallet = await trx("wallets")
-            .where({id: recipientWalletId})
-            .first();
+        // Fetch the recipient's wallet and email
+        const [recipientWallet, recipientDetails] = await Promise.all([
+            trx("wallets").where({id: recipientWalletId}).first(),
+            trx("users").join("wallets", "users.id", "wallets.user_id")
+                .where("wallets.id", recipientWalletId)
+                .select("users.email")
+                .first()
+        ]);
 
-        if (!recipientWallet) {
+        if (!recipientWallet || !recipientDetails) {
             await trx.rollback();
-            return res.status(404).json({error: "Recipient wallet not found"});
+            return res.status(404).json({error: "Recipient wallet or details not found"});
         }
 
         // Create a new transfer transaction
@@ -146,8 +194,29 @@ export const transferFunds = async (req: AuthenticatedRequest, res: Response) =>
             .where({id: recipientWallet.id})
             .update({balance: db.raw("balance + ?", [amount])});
 
+        // Fetch updated balances
+        const [updatedSenderWallet, updatedRecipientWallet] = await Promise.all([
+            trx("wallets").where({id: senderWallet.id}).select("balance").first(),
+            trx("wallets").where({id: recipientWallet.id}).select("balance").first()
+        ]);
+
         await trx.commit();
         res.status(200).json({message: "Transfer successful"});
+
+        // Send email notifications
+        await Promise.all([
+            sendTransactionNotificationEmail(senderDetails.email, {
+                type: "transfer",
+                amount: amount,
+                balance: updatedSenderWallet.balance,
+                recipientEmail: recipientDetails.email
+            }),
+            sendTransactionNotificationEmail(recipientDetails.email, {
+                type: "deposit",
+                amount: amount,
+                balance: updatedRecipientWallet.balance
+            })
+        ]);
     } catch (error) {
         await trx.rollback();
         console.error(error);

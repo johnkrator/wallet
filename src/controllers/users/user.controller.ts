@@ -1,6 +1,8 @@
 import {Request, Response} from "express";
 import db from "../../db/db";
-import {CustomRequest} from "../../helpers/custom";
+import {AuthenticatedRequest} from "../../helpers/middlewares/authMiddleware";
+import {logger} from "../../helpers/middlewares/logger";
+import {getCircularReplacer} from "../../helpers/middlewares/getCircularReplacer";
 
 export const getUsers = async (_req: Request, res: Response) => {
     try {
@@ -34,26 +36,19 @@ export const getUser = async (req: Request, res: Response) => {
     }
 };
 
-export const getCurrentUser = async (req: CustomRequest, res: Response) => {
-    const userId = req.user.id;
-    console.log("User ID:", userId);
+export const getCurrentUser = (req: Request, res: Response) => {
+    const user = req as AuthenticatedRequest;
 
-    try {
-        const [user] = await db("users")
-            .where({id: userId, is_deleted: false})
-            .select("id", "name", "email", "phone_number", "is_verified", "is_blacklisted", "created_at", "updated_at");
-
-        console.log("SQL Query:", db("users").where({id: userId}).select("id", "name", "email", "phone_number", "is_verified", "is_blacklisted", "created_at", "updated_at").toString());
-
-        if (!user) {
-            return res.status(404).json({error: "User not found"});
-        }
-
-        res.status(200).json(user);
-    } catch (error) {
-        console.error(error);
-        res.status(500).json({error: "Internal Server Error"});
+    if (!user.user) {
+        logger.error("User not found in request object");
+        return res.status(401).json({error: "Unauthorized"});
     }
+
+    const replacer = getCircularReplacer();
+    const safeUser = JSON.parse(JSON.stringify(user.user, replacer));
+
+    logger.debug("Current user:", safeUser);
+    res.status(200).json(safeUser);
 };
 
 export const updateUser = async (req: Request, res: Response) => {

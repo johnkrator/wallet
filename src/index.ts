@@ -2,10 +2,10 @@ import express, {Application} from "express";
 import cookieParser from "cookie-parser";
 import cors from "cors";
 import dotenv from "dotenv";
-import connection from "./db/db";
 import {generalErrorHandler, notFoundErrorHandler} from "./helpers/middlewares/errorMiddleware";
-import authRoutes from "./routes/onboarding.routes";
-import usersRoutes from "./routes/users.routes";
+import authRoutes from "./routes/users/onboarding.routes";
+import usersRoutes from "./routes/users/users.routes";
+import {dbConnection} from "./db/dbConnection";
 
 dotenv.config();
 
@@ -18,15 +18,6 @@ app.use(cors());
 
 app.use("/api/v1/auth", authRoutes);
 app.use("/api/v1/users", usersRoutes);
-
-async function dbConnection() {
-    try {
-        await connection.raw("SELECT 1 + 1 AS result");
-        console.log("Database connected successfully 💪");
-    } catch (error) {
-        console.error("Error connecting to the database:", error);
-    }
-}
 
 app.use(notFoundErrorHandler);
 app.use(generalErrorHandler);

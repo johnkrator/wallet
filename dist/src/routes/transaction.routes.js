@@ -9,5 +9,6 @@ const authMiddleware_1 = require("../helpers/middlewares/authMiddleware");
 const router = express_1.default.Router();
 router.post("/deposit", authMiddleware_1.authenticate, transaction_controllers_1.fundWallet);
 router.post("/withdraw", authMiddleware_1.authenticate, transaction_controllers_1.withdrawFunds);
+router.post("/transfer", authMiddleware_1.authenticate, transaction_controllers_1.transferFunds);
 exports.default = router;
 //# sourceMappingURL=transaction.routes.js.map

@@ -12,7 +12,7 @@ var __importDefault = (this && this.__importDefault) || function (mod) {
     return (mod && mod.__esModule) ? mod : { "default": mod };
 };
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.withdrawFunds = exports.fundWallet = void 0;
+exports.transferFunds = exports.withdrawFunds = exports.fundWallet = void 0;
 const db_1 = __importDefault(require("../db/db"));
 const fundWallet = (req, res) => __awaiter(void 0, void 0, void 0, function* () {
     const { amount } = req.body;
@@ -89,4 +89,59 @@ const withdrawFunds = (req, res) => __awaiter(void 0, void 0, void 0, function* 
     }
 });
 exports.withdrawFunds = withdrawFunds;
+const transferFunds = (req, res) => __awaiter(void 0, void 0, void 0, function* () {
+    const { recipientWalletId, amount } = req.body;
+    const user = req.user;
+    if (!user) {
+        return res.status(401).json({ error: "Unauthorized" });
+    }
+    const trx = yield db_1.default.transaction();
+    try {
+        // Fetch the sender's wallet
+        const senderWallet = yield trx("wallets")
+            .where({ user_id: user.id })
+            .first();
+        if (!senderWallet) {
+            yield trx.rollback();
+            return res.status(404).json({ error: "Sender wallet not found" });
+        }
+        // Check if the sender has sufficient balance
+        if (senderWallet.balance < amount) {
+            yield trx.rollback();
+            return res.status(400).json({ error: "Insufficient balance" });
+        }
+        // Fetch the recipient's wallet
+        const recipientWallet = yield trx("wallets")
+            .where({ id: recipientWalletId })
+            .first();
+        if (!recipientWallet) {
+            yield trx.rollback();
+            return res.status(404).json({ error: "Recipient wallet not found" });
+        }
+        // Create a new transfer transaction
+        yield trx("transactions").insert({
+            wallet_id: senderWallet.id,
+            type: "transfer",
+            amount,
+            status: "successful",
+            recipient_wallet_id: recipientWallet.id,
+        });
+        // Update the sender's wallet balance
+        yield trx("wallets")
+            .where({ id: senderWallet.id })
+            .update({ balance: db_1.default.raw("balance - ?", [amount]) });
+        // Update the recipient's wallet balance
+        yield trx("wallets")
+            .where({ id: recipientWallet.id })
+            .update({ balance: db_1.default.raw("balance + ?", [amount]) });
+        yield trx.commit();
+        res.status(200).json({ message: "Transfer successful" });
+    }
+    catch (error) {
+        yield trx.rollback();
+        console.error(error);
+        res.status(500).json({ error: "Internal Server Error" });
+    }
+});
+exports.transferFunds = transferFunds;
 //# sourceMappingURL=transaction.controllers.js.map

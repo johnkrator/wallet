@@ -5,6 +5,7 @@ import dotenv from "dotenv";
 import {generalErrorHandler, notFoundErrorHandler} from "./helpers/middlewares/errorMiddleware";
 import authRoutes from "./routes/users/onboarding.routes";
 import usersRoutes from "./routes/users/users.routes";
+import transactionRoutes from "./routes/transaction.routes";
 import {dbConnection} from "./db/dbConnection";
 
 dotenv.config();
@@ -18,6 +19,7 @@ app.use(cors());
 
 app.use("/api/v1/auth", authRoutes);
 app.use("/api/v1/users", usersRoutes);
+app.use("/api/v1/wallets", transactionRoutes);
 
 app.use(notFoundErrorHandler);
 app.use(generalErrorHandler);

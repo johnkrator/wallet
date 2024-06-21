@@ -1,10 +1,6 @@
-# Postman Documentation
+# Demo Credit Solution
 
-https://documenter.getpostman.com/view/18462993/2sA3XV8yyE
-
-# Lendsqr Fintech Solution
-
-Welcome to the Lendsqr fintech solution, a platform designed for financial transactions and user management.
+Welcome to the Demo Credit solution, a platform designed for financial transactions and user management.
 
 ## Table of Contents
 
@@ -19,15 +15,17 @@ Welcome to the Lendsqr fintech solution, a platform designed for financial trans
 9. [Deployment](#deployment)
 10. [Contributing](#contributing)
 11. [License](#license)
+12. [Postman Documentation](#postman-documentation)
 
 ## Introduction
 
-Lendsqr is a fintech application built on Node.js and Express.js, designed to facilitate financial transactions such as
+Demo Credit is a fintech application built on Node.js and Express.js, designed to facilitate financial transactions such
+as
 deposits, withdrawals, transfers, and manage user information securely.
 
 ## Setup Instructions
 
-To run the Lendsqr application locally, follow these steps:
+To run the Demo Credit application locally, follow these steps:
 
 1. **Clone the repository:**
 
@@ -49,10 +47,25 @@ To run the Lendsqr application locally, follow these steps:
    ```plaintext
    PORT=3000
    JWT_SECRET=your_jwt_secret
-   DATABASE_URL=your_database_connection_string
+   
+   DB_HOST=localhost
+   DB_USER=root
+   DB_PASSWORD=
+   DB_NAME=xxxxDB
+   DB_PORT=3306
+   
+   FROM_EMAIL=xxxx
+   EMAIL_USERNAME=xxxx
+   EMAIL_PASSWORD=xxxx
    ```
 
-4. **Start the server:**
+4. **Run database migrations:**
+
+   ```bash
+   npm run migrate
+   ```
+
+5. **Start the server:**
 
    ```bash
    npm start
@@ -63,33 +76,49 @@ To run the Lendsqr application locally, follow these steps:
 ## Folder Structure
 
 ```
-lendsqr-fintech/
+wallet/
 │
 ├── controllers/
 │   ├── transaction.controllers.ts
-│   ├── users/
+│   └── users/
 │       ├── onboarding.controller.ts
-│       ├── user.controller.ts
+│       └── user.controller.ts
 │
 ├── db/
 │   ├── dbConnection.ts
 │   ├── migrations/
-│   ├── seeds/
+│   │   ├── createDatabase.ts
+│   │   └── otherMigrations.ts
+│   └── seeds/
 │
 ├── helpers/
+│   ├── emailService/
+│   │   ├── sendRegistrationVerificationEmail.ts
+│   │   └── sendTransactionNotificationEmail.ts
 │   ├── middlewares/
-│       ├── authMiddleware.ts
-│       ├── errorMiddleware.ts
+│   │   ├── authMiddleware.ts
+│   │   ├── checkBlacklist.ts
+│   │   └── errorMiddleware.ts
+│   ├── generateToken.ts
+│   ├── getCircularReplacer.ts
+│   └── logger.ts
 │
 ├── routes/
 │   ├── transaction.routes.ts
-│   ├── users/
+│   └── users/
 │       ├── onboarding.routes.ts
-│       ├── users.routes.ts
+│       └── users.routes.ts
 │
 ├── .env
-├── app.ts
-└── README.md
+├── .env.example
+├── .gitignore
+├── app.log
+├── knexfile.ts
+├── package.json
+├── package-lock.json
+├── README.md
+├── tsconfig.json
+└── app.ts
 ```
 
 ## Endpoints
@@ -161,3 +190,11 @@ and submit a pull request.
 ## License
 
 This project is licensed under the [MIT License](LICENSE).
+
+For detailed API documentation, refer to the Postman collection:
+
+## Postman Documentation
+
+[Postman Documentation](https://documenter.getpostman.com/view/18462993/2sA3XV8yyE)
+
+---

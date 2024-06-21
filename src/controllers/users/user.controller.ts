@@ -36,19 +36,36 @@ export const getUser = async (req: Request, res: Response) => {
     }
 };
 
-export const getCurrentUser = (req: Request, res: Response) => {
-    const user = req as AuthenticatedRequest;
+export const getCurrentUser = async (req: Request, res: Response) => {
+    const authenticatedReq = req as AuthenticatedRequest;
 
-    if (!user.user) {
+    if (!authenticatedReq.user || !authenticatedReq.user.id) {
         logger.error("User not found in request object");
         return res.status(401).json({error: "Unauthorized"});
     }
 
-    const replacer = getCircularReplacer();
-    const safeUser = JSON.parse(JSON.stringify(user.user, replacer));
+    try {
+        const result = await db("users")
+            .where({id: authenticatedReq.user.id, is_deleted: false})
+            .select("id", "name", "email", "phone_number", "is_verified", "is_blacklisted", "created_at", "updated_at")
+            .first();
 
-    logger.debug("Current user:", safeUser);
-    res.status(200).json(safeUser);
+        if (!result) {
+            logger.error(`User with ID ${authenticatedReq.user.id} not found or is deleted`);
+            return res.status(404).json({error: "User not found"});
+        }
+
+        const user = result;
+
+        const replacer = getCircularReplacer();
+        const safeUser = JSON.parse(JSON.stringify(user, replacer));
+
+        logger.debug("Current user:", safeUser);
+        res.status(200).json(safeUser);
+    } catch (error) {
+        logger.error("Error fetching current user:", error);
+        res.status(500).json({error: "Internal Server Error"});
+    }
 };
 
 export const updateUser = async (req: Request, res: Response) => {
@@ -63,19 +80,9 @@ export const updateUser = async (req: Request, res: Response) => {
         return res.status(404).json({error: "User not found"});
     }
 
-    // Check if phone number already exists
-    const phoneNumberExist = await db("users")
-        .where({phone_number: phoneNumber})
-        .orWhere({email})
-        .first();
-
-    if (phoneNumberExist && phoneNumberExist.id !== id) {
-        return res.status(400).json({error: "Phone number or email already exists"});
-    }
-
     try {
         const updated = await db("users")
-            .where({id})
+            .where({id, is_deleted: false})
             .update({
                 name,
                 email,

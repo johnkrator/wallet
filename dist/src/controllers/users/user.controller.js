@@ -46,17 +46,32 @@ const getUser = (req, res) => __awaiter(void 0, void 0, void 0, function* () {
     }
 });
 exports.getUser = getUser;
-const getCurrentUser = (req, res) => {
-    const user = req;
-    if (!user.user) {
+const getCurrentUser = (req, res) => __awaiter(void 0, void 0, void 0, function* () {
+    const authenticatedReq = req;
+    if (!authenticatedReq.user || !authenticatedReq.user.id) {
         logger_1.logger.error("User not found in request object");
         return res.status(401).json({ error: "Unauthorized" });
     }
-    const replacer = (0, getCircularReplacer_1.getCircularReplacer)();
-    const safeUser = JSON.parse(JSON.stringify(user.user, replacer));
-    logger_1.logger.debug("Current user:", safeUser);
-    res.status(200).json(safeUser);
-};
+    try {
+        const result = yield (0, db_1.default)("users")
+            .where({ id: authenticatedReq.user.id, is_deleted: false })
+            .select("id", "name", "email", "phone_number", "is_verified", "is_blacklisted", "created_at", "updated_at")
+            .first();
+        if (!result) {
+            logger_1.logger.error(`User with ID ${authenticatedReq.user.id} not found or is deleted`);
+            return res.status(404).json({ error: "User not found" });
+        }
+        const user = result;
+        const replacer = (0, getCircularReplacer_1.getCircularReplacer)();
+        const safeUser = JSON.parse(JSON.stringify(user, replacer));
+        logger_1.logger.debug("Current user:", safeUser);
+        res.status(200).json(safeUser);
+    }
+    catch (error) {
+        logger_1.logger.error("Error fetching current user:", error);
+        res.status(500).json({ error: "Internal Server Error" });
+    }
+});
 exports.getCurrentUser = getCurrentUser;
 const updateUser = (req, res) => __awaiter(void 0, void 0, void 0, function* () {
     const { id } = req.params;
@@ -67,17 +82,9 @@ const updateUser = (req, res) => __awaiter(void 0, void 0, void 0, function* () 
     if (!userDeletedOrNotExist) {
         return res.status(404).json({ error: "User not found" });
     }
-    // Check if phone number already exists
-    const phoneNumberExist = yield (0, db_1.default)("users")
-        .where({ phone_number: phoneNumber })
-        .orWhere({ email })
-        .first();
-    if (phoneNumberExist && phoneNumberExist.id !== id) {
-        return res.status(400).json({ error: "Phone number or email already exists" });
-    }
     try {
         const updated = yield (0, db_1.default)("users")
-            .where({ id })
+            .where({ id, is_deleted: false })
             .update({
             name,
             email,

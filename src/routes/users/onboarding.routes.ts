@@ -3,8 +3,13 @@ import {login, register, verifyEmail} from "../../controllers/users/onboarding.c
 
 const router = express.Router();
 
-router.post("/register", register);
-router.post("/verify-email", verifyEmail);
-router.post("/login", login);
+router.route("/register")
+    .post(register);
+
+router.route("/verify-email")
+    .post(verifyEmail);
+
+router.route("/login")
+    .post(login);
 
 export default router;

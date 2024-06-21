@@ -4,9 +4,16 @@ import {authenticate} from "../helpers/middlewares/authMiddleware";
 
 const router = express.Router();
 
-router.post("/deposit", authenticate, fundWallet);
-router.post("/withdraw", authenticate, withdrawFunds);
-router.post("/transfer", authenticate, transferFunds);
-router.get("/:walletId", authenticate, getWalletTransactions);
+router.route("/deposit")
+    .post(authenticate, fundWallet);
+
+router.route("/withdraw")
+    .post(authenticate, withdrawFunds);
+
+router.route("/transfer")
+    .post(authenticate, transferFunds);
+
+router.route("/:walletId")
+    .get(authenticate, getWalletTransactions);
 
 export default router;

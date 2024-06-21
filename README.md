@@ -1,3 +1,6 @@
+#Postman Documentation
+https://documenter.getpostman.com/view/18462993/2sA3XV8yyE
+
 # Lendsqr Fintech Solution
 
 Welcome to the Lendsqr fintech solution, a platform designed for financial transactions and user management.

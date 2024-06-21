@@ -12,6 +12,7 @@
       "./src/types"
     ],
     "target": "es6",
+    "strict": true,
     "noImplicitAny": true,
     "moduleResolution": "node",
     "sourceMap": true,
